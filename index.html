@@ -1310,9 +1310,147 @@
             .notif-foto { width: 150px; height: 150px; }
             .notif-nome { font-size: 2rem; }
         }
+
+        /* TELA DE AUTENTICAÇÃO */
+        .auth-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, #0a0e14 0%, #1a2e1a 50%, #2a1a1a 100%);
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 30px;
+        }
+        
+        .auth-overlay.hidden {
+            display: none;
+        }
+        
+        .auth-box {
+            background: rgba(255,255,255,0.05);
+            border: 2px solid rgba(255,215,0,0.3);
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            backdrop-filter: blur(10px);
+        }
+        
+        .auth-icon {
+            font-size: 5rem;
+            margin-bottom: 20px;
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .auth-title {
+            font-family: 'Pacifico', cursive;
+            font-size: 2rem;
+            background: linear-gradient(135deg, var(--natal-gold), #ffaa00);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+        
+        .auth-subtitle {
+            color: rgba(255,255,255,0.7);
+            margin-bottom: 30px;
+            font-size: 0.95rem;
+        }
+        
+        .auth-input {
+            width: 100%;
+            padding: 16px 20px;
+            font-size: 1.1rem;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 12px;
+            background: rgba(0,0,0,0.3);
+            color: white;
+            text-align: center;
+            letter-spacing: 3px;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+        
+        .auth-input:focus {
+            outline: none;
+            border-color: var(--natal-gold);
+            box-shadow: 0 0 20px rgba(255,215,0,0.3);
+        }
+        
+        .auth-input::placeholder {
+            letter-spacing: normal;
+            color: rgba(255,255,255,0.4);
+        }
+        
+        .auth-btn {
+            width: 100%;
+            padding: 16px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--natal-gold), #ffaa00);
+            color: var(--midnight);
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: 'Poppins', sans-serif;
+        }
+        
+        .auth-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(255,215,0,0.4);
+        }
+        
+        .auth-btn:active {
+            transform: translateY(0);
+        }
+        
+        .auth-error {
+            color: #ff6b6b;
+            margin-top: 15px;
+            font-size: 0.9rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .auth-error.show {
+            opacity: 1;
+        }
+        
+        .auth-stars {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
+    <!-- TELA DE AUTENTICAÇÃO -->
+    <div class="auth-overlay" id="authOverlay">
+        <div class="auth-stars" id="authStars"></div>
+        <div class="auth-box">
+            <div class="auth-icon">🔐</div>
+            <h1 class="auth-title">Painel do Guardião</h1>
+            <p class="auth-subtitle">Digite a senha para acessar o painel de controle</p>
+            <input type="password" class="auth-input" id="authInput" placeholder="Digite a senha..." onkeypress="if(event.key==='Enter')verificarAutenticacao()">
+            <button class="auth-btn" onclick="verificarAutenticacao()">🎄 ENTRAR</button>
+            <p class="auth-error" id="authError">❌ Senha incorreta. Tente novamente.</p>
+        </div>
+    </div>
+
     <div class="particles" id="particles"></div>
     <div class="confetes" id="confetes"></div>
 
@@ -2219,7 +2357,48 @@
         // ==========================================
         // INICIALIZAÇÃO E LISTENERS FIREBASE
         // ==========================================
-        document.addEventListener('DOMContentLoaded', () => {
+        
+        // Função para verificar autenticação
+        function verificarAutenticacao() {
+            const senha = document.getElementById('authInput').value;
+            const errorEl = document.getElementById('authError');
+            
+            if (senha.toLowerCase() === SENHA_GUARDIAO) {
+                // Senha correta - esconder overlay e inicializar sistema
+                document.getElementById('authOverlay').classList.add('hidden');
+                inicializarSistema();
+            } else {
+                // Senha incorreta
+                errorEl.classList.add('show');
+                document.getElementById('authInput').value = '';
+                document.getElementById('authInput').focus();
+                
+                // Shake animation
+                const box = document.querySelector('.auth-box');
+                box.style.animation = 'shake 0.5s';
+                setTimeout(() => box.style.animation = '', 500);
+            }
+        }
+        
+        // Criar estrelas na tela de auth
+        function criarEstrelasAuth() {
+            const container = document.getElementById('authStars');
+            for (let i = 0; i < 50; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                star.style.left = Math.random() * 100 + 'vw';
+                star.style.top = Math.random() * 100 + 'vh';
+                const size = 1 + Math.random() * 3;
+                star.style.width = size + 'px';
+                star.style.height = size + 'px';
+                star.style.animationDuration = (2 + Math.random() * 3) + 's';
+                star.style.animationDelay = Math.random() * 5 + 's';
+                container.appendChild(star);
+            }
+        }
+        
+        // Inicializar sistema após autenticação
+        function inicializarSistema() {
             criarParticulas();
             
             // Data padrão: 1 ano a partir de hoje
@@ -2287,6 +2466,25 @@
                     }
                 });
             });
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            // Criar estrelas na tela de login
+            criarEstrelasAuth();
+            
+            // Focar no input de senha
+            document.getElementById('authInput').focus();
+            
+            // Adicionar keyframe de shake
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes shake {
+                    0%, 100% { transform: translateX(0); }
+                    10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+                    20%, 40%, 60%, 80% { transform: translateX(10px); }
+                }
+            `;
+            document.head.appendChild(style);
         });
     </script>
 </body>
