@@ -2,6 +2,27 @@
 
 Sistema interativo para criar cápsulas do tempo em eventos como Natal e Ano Novo. Os participantes guardam memórias, desejos, áudios e mensagens para abrir no futuro!
 
+Este repositório (`capsuladotempo2`) é a versão usada pela família no Natal de 2025. O repositório irmão `capsuladotempo` é uma versão anterior, menor, e não é onde as cápsulas daquele Natal estão salvas.
+
+## Abertura do Natal 2025 Veloso
+
+A data **não está fixa no código**. Ela está no Firebase, no evento `Natal 2025 Veloso`:
+
+- Caminho: `eventos/evt_1766622258729_6n25ck4jk/dataAbertura`
+- Valor: `2026-12-25T15:00:00.000Z`
+- Na tela: **25/12/2026 às 12:00, horário de Brasília**
+
+Cada cápsula desse evento repete a mesma data em `capsulas/<id>/dataAbertura`. O evento está arquivado (lacrado) e, em outubro de 2026, nenhuma cápsula dele estava liberada nem aberta.
+
+Na data, duas coisas passam a funcionar ao mesmo tempo:
+
+1. O painel do guardião libera a cerimônia e o botão **Liberar todas** (senha já configurada no `index.html`).
+2. Cada pessoa pode abrir a própria cápsula pelo link, mesmo que o guardião esqueça de liberar. Antes desse instante o conteúdo não abre, inclusive pelo parâmetro `guardiao=true`.
+
+Para mudar a data sem apagar mensagens, altere **somente** o campo `dataAbertura` do evento e das cápsulas daquele evento no [Realtime Database](https://console.firebase.google.com/project/capsuladotempo-f86bf/database). Não apague o nó `capsulas` nem troque `mensagemPessoal`, `perguntas`, `audioBase64` ou `foto`.
+
+Há também o evento **Acqua Bella 2025**, lacrado para **20/12/2026 às 12:00** (Brasília). Eventos de teste antigos continuam no banco e não foram removidos.
+
 ## ✨ Novas Funcionalidades
 
 ### 🎤 Gravação de Áudio
@@ -152,8 +173,8 @@ O projeto usa Firebase já configurado. Para usar seu próprio:
   },
   "audio": "https://...",
   "mensagemPessoal": "Querido eu do futuro...",
-  "dataCriacao": "2024-12-25T10:00:00Z",
-  "dataAbertura": "2025-12-25T12:00:00Z",
+  "dataCriacao": "2025-12-25T18:00:00Z",
+  "dataAbertura": "2026-12-25T15:00:00.000Z",
   "liberada": false,
   "aberta": false,
   "reflexao": null
@@ -188,6 +209,15 @@ Problemas comuns:
 - **Página não atualiza**: Limpe o cache (Ctrl+Shift+R)
 - **Erro no Firebase**: Verifique as regras do Realtime Database
 - **Áudio não grava**: Permita acesso ao microfone no navegador
+- **Fotos não aparecem**: a conta de cobrança do Firebase Storage do projeto `capsuladotempo-f86bf` está encerrada. Os arquivos continuam no bucket, mas o download responde erro 402 até o faturamento ser reativado no console. As cartas e os áudios em base64 no Realtime Database não dependem disso.
+
+### Segurança (pendência do Ramon)
+
+- A chave `apiKey` do Firebase nos HTML é a chave pública de app web. O risco real é outro: o README original documenta regras `.read: true` e `.write: true`. Com isso, qualquer pessoa com o link do banco pode ler e **sobrescrever** cápsulas. Não alterei essas regras daqui, porque uma regra errada pode impedir a abertura no Natal.
+- A senha do guardião continua no `index.html` (`SENHA_GUARDIAO`). Ela protege só a interface; não protege o banco.
+- Recomendação depois do Natal, com calma: regras que permitam leitura das cápsulas e escrita limitada, sem apagar o histórico.
+
+Para ensaiar a cerimônia sem tocar nos dados reais, abra `index.html?demo=1` e `capsula.html?demo=1`. O modo `?demo=1&quando=antes` mostra a contagem ainda fechada.
 
 ---
 

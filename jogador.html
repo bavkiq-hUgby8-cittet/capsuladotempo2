@@ -2,7 +2,9 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0e14">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎁</text></svg>">
     <title>🎁 Criar Cápsula do Tempo</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Poppins:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
@@ -13,6 +15,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+    <script src="comum.js"></script>
     
     <style>
         :root { --natal-red: #c41e3a; --natal-green: #165b33; --natal-gold: #ffd700; --midnight: #0a0e14; }
@@ -211,6 +214,10 @@
         .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
         .toast.error { background: var(--natal-red); }
 
+        :focus-visible { outline: 3px solid var(--natal-gold); outline-offset: 3px; }
+        @media (prefers-reduced-motion: reduce) {
+            .snowflake, .confete, .star, .icone-presente { animation: none; }
+        }
         @media (max-width: 400px) {
             .container { padding: 16px; }
             .header-tela h2 { font-size: 1.5rem; }
@@ -568,7 +575,7 @@ Escreva tudo que quiser lembrar quando abrir esta cápsula..." maxlength="5000" 
         <div class="tela tela-erro" id="telaErro">
             <div class="erro-icon">😕</div>
             <h2 style="color:var(--natal-gold);margin-bottom:12px">Ops!</h2>
-            <p class="erro-msg">Evento não encontrado ou já encerrado.</p>
+            <p class="erro-msg" id="erroMsg">Evento não encontrado ou já encerrado.</p>
         </div>
     </div>
 
@@ -664,7 +671,7 @@ Escreva tudo que quiser lembrar quando abrir esta cápsula..." maxlength="5000" 
         // UTILS
         // ==========================================
         const gerarID = (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2,9)}`;
-        const formatarData = (d) => new Date(d).toLocaleDateString('pt-BR');
+        const formatarData = (d) => CapsulaTempo.formatarData(d);
         
         const mostrarToast = (msg, tipo='success') => {
             const t = document.getElementById('toast');
@@ -744,16 +751,24 @@ Escreva tudo que quiser lembrar quando abrir esta cápsula..." maxlength="5000" 
                 const snap = await database.ref(`eventos/${eventoId}`).once('value');
                 eventoData = snap.val();
                 
-                if (!eventoData || eventoData.arquivado) {
+                if (!eventoData) {
+                    document.getElementById('erroMsg').textContent = 'Evento não encontrado. Confira o link do QR Code.';
+                    mostrarTela('telaErro');
+                    return;
+                }
+
+                if (eventoData.arquivado) {
+                    document.getElementById('erroMsg').textContent = `Este evento já foi lacrado. A abertura é em ${CapsulaTempo.formatarDataHora(eventoData.dataAbertura)} (horário de Brasília). Use o link pessoal da sua cápsula.`;
                     mostrarTela('telaErro');
                     return;
                 }
                 
                 document.getElementById('nomeEvento').textContent = eventoData.nome;
-                document.getElementById('dataEvento').textContent = formatarData(eventoData.dataAbertura);
+                document.getElementById('dataEvento').textContent = CapsulaTempo.formatarDataHora(eventoData.dataAbertura);
                 
             } catch (err) {
                 console.error(err);
+                document.getElementById('erroMsg').textContent = 'Sem conexão com o servidor. Verifique a internet e atualize a página.';
                 mostrarTela('telaErro');
             }
         });
@@ -992,24 +1007,32 @@ Escreva tudo que quiser lembrar quando abrir esta cápsula..." maxlength="5000" 
                 capsulaId = gerarID('cap');
                 let fotoUrl = null, audioUrl = null;
 
+                let fotoLocal = null;
                 if (fotoBase64) {
-                    const fotoRef = storage.ref(`capsulas/${capsulaId}/foto.jpg`);
-                    const fotoBlob = await (await fetch(fotoBase64)).blob();
-                    await fotoRef.put(fotoBlob, { contentType: 'image/jpeg' });
-                    fotoUrl = await fotoRef.getDownloadURL();
+                    try {
+                        const fotoRef = storage.ref(`capsulas/${capsulaId}/foto.jpg`);
+                        const fotoBlob = await (await fetch(fotoBase64)).blob();
+                        await fotoRef.put(fotoBlob, { contentType: 'image/jpeg' });
+                        fotoUrl = await fotoRef.getDownloadURL();
+                    } catch (e) {
+                        console.warn('Foto não foi para o Storage. Uma cópia fica na cápsula.', e);
+                        fotoLocal = fotoBase64;
+                    }
                 }
 
                 if (audioBase64 && audioConfirmadoFlag) {
                     try {
                         const audioBlob = await (await fetch(audioBase64)).blob();
-                        const audioRef = storage.ref(`capsulas/${capsulaId}/audio.webm`);
-                        await audioRef.put(audioBlob);
+                        const tipo = audioBlob.type || 'audio/mp4';
+                        const ext = tipo.includes('webm') ? 'webm' : 'm4a';
+                        const audioRef = storage.ref(`capsulas/${capsulaId}/audio.${ext}`);
+                        await audioRef.put(audioBlob, { contentType: tipo });
                         audioUrl = await audioRef.getDownloadURL();
                     } catch (e) { console.log('Audio storage error:', e); }
                 }
 
                 await database.ref(`capsulas/${capsulaId}`).set({
-                    eventoId, nome, sobrenome, foto: fotoUrl,
+                    eventoId, nome, sobrenome, foto: fotoUrl, fotoLocal,
                     desejos: desejosSelecionados, pessoas: pessoasSelecionadas,
                     perguntas: { conquista, momento, palavra, previsao, felicidade: notaFelicidade },
                     audioUrl, audioBase64: audioConfirmadoFlag ? audioBase64 : null,
@@ -1019,7 +1042,7 @@ Escreva tudo que quiser lembrar quando abrir esta cápsula..." maxlength="5000" 
                     liberada: false, aberta: false
                 });
 
-                const base = window.location.origin + window.location.pathname.replace('jogador.html', '');
+                const base = new URL('.', window.location.href).href;
                 linkCapsula = `${base}capsula.html?id=${capsulaId}`;
 
                 document.getElementById('loading').classList.remove('active');
@@ -1037,7 +1060,7 @@ Escreva tudo que quiser lembrar quando abrir esta cápsula..." maxlength="5000" 
             const foto = document.getElementById('sucessoFoto');
             if (fotoSrc) foto.innerHTML = `<img src="${fotoSrc}" style="width:100%;height:100%;object-fit:cover">`;
             document.getElementById('sucessoMsg').textContent = `${nome}, sua cápsula está segura!`;
-            document.getElementById('sucessoData').textContent = formatarData(eventoData.dataAbertura);
+            document.getElementById('sucessoData').textContent = CapsulaTempo.formatarDataHora(eventoData.dataAbertura);
             const dias = Math.ceil((new Date(eventoData.dataAbertura) - new Date()) / (1000*60*60*24));
             document.getElementById('sucessoDias').textContent = `${dias} dias restantes`;
             mostrarTela('telaSucesso');
@@ -1168,7 +1191,7 @@ Escreva tudo que quiser lembrar quando abrir esta cápsula..." maxlength="5000" 
             // Subtítulo
             ctx.font = '40px Arial, sans-serif';
             ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-            ctx.fillText(eventoData?.nome || 'Natal 2024', w/2, 230);
+            ctx.fillText(eventoData?.nome || 'Cápsula do Tempo', w/2, 230);
             
             updateProgress(50);
             
@@ -1517,7 +1540,7 @@ Escreva tudo que quiser lembrar quando abrir esta cápsula..." maxlength="5000" 
                     // Subtítulo
                     tempCtx.font = '18px Arial';
                     tempCtx.fillStyle = 'rgba(255,255,255,0.9)';
-                    tempCtx.fillText(eventoData?.nome || 'Natal 2024', w/2, 105);
+                    tempCtx.fillText(eventoData?.nome || 'Cápsula do Tempo', w/2, 105);
                     
                     // Cápsula animada
                     const capY = 260 + Math.sin(frame * 0.2) * 8;
