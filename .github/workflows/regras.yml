@@ -30,7 +30,7 @@ jobs:
           npm run test:regras > saida.txt 2>&1
           status=$?
           cat saida.txt
-          resumo=$(grep -E '^(not ok|# (tests|pass|fail))|AssertionError|FirebaseError|Error:' saida.txt | head -40)
+          resumo=$(grep -E -A 25 '^not ok' saida.txt | head -60; grep -E '^# (tests|pass|fail)' saida.txt)
           [ -z "$resumo" ] && resumo=$(tail -40 saida.txt)
           resumo="${resumo//'%'/'%25'}"; resumo="${resumo//$'\n'/'%0A'}"; resumo="${resumo//$'\r'/'%0D'}"
           if [ $status -eq 0 ]; then echo "::notice title=Regras OK::$resumo"; else echo "::error title=Regras falharam::$resumo"; fi
