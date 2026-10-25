@@ -24,4 +24,14 @@ jobs:
           distribution: temurin
           java-version: 21
       - run: npm ci
-      - run: npm run test:regras
+      - name: Testes de regras
+        run: |
+          set +e
+          npm run test:regras > saida.txt 2>&1
+          status=$?
+          cat saida.txt
+          resumo=$(grep -E '^(not ok|# (tests|pass|fail))|AssertionError|FirebaseError|Error:' saida.txt | head -40)
+          [ -z "$resumo" ] && resumo=$(tail -40 saida.txt)
+          resumo="${resumo//'%'/'%25'}"; resumo="${resumo//$'\n'/'%0A'}"; resumo="${resumo//$'\r'/'%0D'}"
+          if [ $status -eq 0 ]; then echo "::notice title=Regras OK::$resumo"; else echo "::error title=Regras falharam::$resumo"; fi
+          exit $status
