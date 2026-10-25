@@ -5,7 +5,8 @@ service firebase.storage {
   match /b/{bucket}/o {
     match /capsulas/{capsulaId}/{arquivo} {
       allow read: if true;
-      allow create: if request.resource.size < 10 * 1024 * 1024
+      allow create: if resource == null
+                    && request.resource.size < 10 * 1024 * 1024
                     && (request.resource.contentType.matches('image/.*')
                         || request.resource.contentType.matches('audio/.*'));
       allow update, delete: if false;
