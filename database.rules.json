@@ -1,0 +1,33 @@
+{
+  "rules": {
+    ".read": true,
+    ".write": false,
+
+    "eventos": {
+      "$eid": {
+        ".write": "!data.exists() && newData.child('nome').isString() && newData.child('nome').val().length >= 1 && newData.child('nome').val().length <= 120 && newData.child('dataAbertura').isString() && newData.child('dataAbertura').val().length <= 40 && newData.child('dataCriacao').isString() && newData.child('arquivado').val() == false",
+        "arquivado": {
+          ".write": "root.child('eventos').child($eid).exists() && newData.val() == true"
+        }
+      }
+    },
+
+    "capsulas": {
+      "$cid": {
+        ".write": "!data.exists() && $cid.length <= 80 && newData.child('eventoId').isString() && root.child('eventos').child(newData.child('eventoId').val()).exists() && root.child('eventos').child(newData.child('eventoId').val()).child('arquivado').val() != true && newData.child('dataAbertura').val() == root.child('eventos').child(newData.child('eventoId').val()).child('dataAbertura').val() && newData.child('nome').isString() && newData.child('nome').val().length >= 1 && newData.child('nome').val().length <= 80 && (!newData.child('mensagemPessoal').exists() || (newData.child('mensagemPessoal').isString() && newData.child('mensagemPessoal').val().length <= 10000)) && (!newData.child('audioBase64').exists() || (newData.child('audioBase64').isString() && newData.child('audioBase64').val().length <= 3000000)) && (!newData.child('fotoLocal').exists() || (newData.child('fotoLocal').isString() && newData.child('fotoLocal').val().length <= 1500000)) && newData.child('liberada').val() == false && newData.child('aberta').val() == false",
+        "liberada": {
+          ".write": "root.child('capsulas').child($cid).exists() && newData.val() == true"
+        },
+        "aberta": {
+          ".write": "root.child('capsulas').child($cid).exists() && newData.val() == true"
+        },
+        "dataVisualizacao": {
+          ".write": "root.child('capsulas').child($cid).exists() && newData.isString() && newData.val().length <= 40"
+        },
+        "reflexao": {
+          ".write": "root.child('capsulas').child($cid).exists() && newData.isString() && newData.val().length >= 1 && newData.val().length <= 5000"
+        }
+      }
+    }
+  }
+}
