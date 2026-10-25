@@ -2,7 +2,9 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0e14">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎄</text></svg>">
     <title>🎄 Cápsula do Tempo - Painel do Guardião</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Poppins:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
@@ -10,6 +12,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="comum.js"></script>
     
     <style>
         :root {
@@ -638,8 +641,9 @@
         
         .avatares-circulo {
             position: relative;
-            width: 500px;
-            height: 500px;
+            width: min(92vw, 500px);
+            height: min(92vw, 500px);
+            margin: 0 auto;
         }
         
         .avatar-circulo {
@@ -1294,6 +1298,26 @@
             .eventos-grid { grid-template-columns: 1fr; }
         }
         
+        .aviso-storage {
+            display: none;
+            margin: 16px auto 0;
+            max-width: 960px;
+            background: rgba(196, 30, 58, 0.22);
+            border: 2px solid #ff8a8a;
+            color: white;
+            padding: 16px 18px;
+            border-radius: 14px;
+            line-height: 1.55;
+        }
+        .aviso-storage.ativo { display: block; }
+        .abre-linha { font-size: 0.95rem; color: rgba(255,255,255,0.75); margin-bottom: 12px; }
+        .abre-linha strong { color: var(--natal-gold); }
+        .btn-action:disabled, .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+        :focus-visible { outline: 3px solid var(--natal-gold); outline-offset: 3px; }
+        @media (prefers-reduced-motion: reduce) {
+            .snowflake, .confete, .star { animation: none; display: none; }
+        }
+
         @media (max-width: 768px) {
             header {
                 padding: 12px 16px;
@@ -1304,7 +1328,7 @@
             .tabs { flex-wrap: wrap; }
             .cerimonia-title { font-size: 2rem; }
             .avatar-card { width: 140px; }
-            .avatares-circulo { width: 300px; height: 300px; }
+            .avatares-circulo { width: min(92vw, 320px); height: min(92vw, 320px); }
             .cerimonia-titulo, .abertura-titulo { font-size: 2rem; }
             .stats-grid { flex-direction: column; gap: 20px; }
             .notif-foto { width: 150px; height: 150px; }
@@ -1511,8 +1535,14 @@
             </div>
             <span style="font-size:1.6rem">🎊</span>
         </div>
-        <button class="btn-header" onclick="abrirBusca()">🔍 Recuperar Link</button>
+        <button class="btn-header" type="button" onclick="abrirBusca()">🔍 Recuperar Link</button>
     </header>
+    <div class="aviso-storage" id="avisoStorage" role="status">
+        <strong>As fotos não carregaram.</strong>
+        O Firebase Storage deste projeto está com a conta de cobrança encerrada, então os arquivos de foto não baixam.
+        As cartas, os desejos e os áudios guardados no banco de dados continuam intactos e não foram alterados.
+        Reative o faturamento do projeto <strong>capsuladotempo-f86bf</strong> no console do Firebase antes do Natal para as fotos voltarem nos mesmos links.
+    </div>
 
     <!-- TABS -->
     <div class="tabs">
@@ -1532,11 +1562,12 @@
                 <form class="form-grid" onsubmit="criarEvento(event)">
                     <div class="form-group">
                         <label>Nome do Evento</label>
-                        <input type="text" id="nomeEvento" placeholder='ex: "Natal 2024"' required>
+                        <input type="text" id="nomeEvento" placeholder='ex: "Natal 2026"' required>
                     </div>
                     <div class="form-group">
                         <label>Data de Abertura</label>
                         <input type="date" id="dataAbertura" required>
+                        <small style="display:block;margin-top:6px;color:rgba(255,255,255,0.55)">Meio-dia, horário de Brasília. Eventos já criados não mudam aqui.</small>
                     </div>
                     <button type="submit" class="btn-primary" id="btnCriar">🎁 CRIAR</button>
                 </form>
@@ -1637,12 +1668,18 @@
         let eventoCerimoniaId = null;
         let capsulaParaLiberar = null;
         let primeiraCarrega = true;
+        let timeoutAbertura = null;
 
         // ==========================================
         // FUNÇÕES UTILITÁRIAS
         // ==========================================
         const gerarID = (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const formatarData = (d) => new Date(d).toLocaleDateString('pt-BR');
+        const formatarData = (d) => CapsulaTempo.formatarData(d);
+        const esc = (v) => CapsulaTempo.escaparHtml(v);
+        let modoDemo = false;
+        let relogioDemo = null;
+        let estadosDatas = '';
+        let avisoStorageMostrado = false;
         
         const mostrarToast = (msg, tipo = 'success') => {
             const toast = document.getElementById('toast');
@@ -1666,9 +1703,34 @@
             }
         };
 
-        const getBaseUrl = () => {
-            return window.location.origin + window.location.pathname.replace('index.html', '');
-        };
+        const getBaseUrl = () => new URL('.', window.location.href).href;
+
+        function agoraMs() {
+            return relogioDemo ?? Date.now();
+        }
+
+        function dataJaChegou(iso) {
+            return CapsulaTempo.jaChegou(iso, agoraMs());
+        }
+
+        function marcarFoto(img) {
+            if (!img || modoDemo) return;
+            img.addEventListener('error', () => {
+                img.replaceWith(criarPlaceholder());
+                if (!avisoStorageMostrado) {
+                    avisoStorageMostrado = true;
+                    document.getElementById('avisoStorage').classList.add('ativo');
+                }
+            });
+        }
+
+        function criarPlaceholder() {
+            const div = document.createElement('div');
+            div.className = 'avatar-placeholder';
+            div.textContent = '👤';
+            div.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#c41e3a,#165b33)';
+            return div;
+        }
 
         // ==========================================
         // PARTÍCULAS DE FUNDO
@@ -1751,11 +1813,15 @@
             const msgEl = document.getElementById('notifMsg');
             const desejosEl = document.getElementById('notifDesejos');
             
-            // Foto
+            fotoEl.replaceChildren();
             if (capsula.foto) {
-                fotoEl.innerHTML = `<img src="${capsula.foto}" alt="${capsula.nome}">`;
+                const img = document.createElement('img');
+                img.alt = `${capsula.nome || ''} ${capsula.sobrenome || ''}`.trim();
+                img.src = capsula.foto;
+                marcarFoto(img);
+                fotoEl.appendChild(img);
             } else {
-                fotoEl.innerHTML = '<div class="notif-foto-placeholder">👤</div>';
+                fotoEl.appendChild(criarPlaceholder());
             }
             
             // Nome
@@ -1812,12 +1878,12 @@
             nuvemContainer.innerHTML = '';
             contador.textContent = '0';
             
-            // Posicionar avatares em círculo
-            const raio = 180;
+            const tamanho = Math.min(window.innerWidth * 0.92, 500);
+            const raio = tamanho * 0.36;
             capsulas.forEach((cap, i) => {
                 const angle = (i / capsulas.length) * 2 * Math.PI - Math.PI / 2;
-                const x = 250 + raio * Math.cos(angle) - 40;
-                const y = 250 + raio * Math.sin(angle) - 40;
+                const x = tamanho / 2 + raio * Math.cos(angle) - 40;
+                const y = tamanho / 2 + raio * Math.sin(angle) - 40;
                 
                 const avatar = document.createElement('div');
                 avatar.className = 'avatar-circulo';
@@ -1831,6 +1897,7 @@
                     avatar.innerHTML = '<div style="width:100%;height:100%;background:linear-gradient(135deg,#c41e3a,#165b33);display:flex;align-items:center;justify-content:center;font-size:2rem">👤</div>';
                 }
                 
+                avatar.querySelectorAll('img').forEach(marcarFoto);
                 avataresContainer.appendChild(avatar);
             });
             
@@ -1883,6 +1950,11 @@
         // CERIMÔNIA DE ABERTURA - MARIO PARTY
         // ==========================================
         function iniciarCerimoniaAbertura(eventoId) {
+            const evento = eventosData[eventoId];
+            if (evento && !dataJaChegou(evento.dataAbertura)) {
+                mostrarToast(`A cerimônia abre em ${CapsulaTempo.formatarDataHora(evento.dataAbertura)} (Brasília).`, 'error');
+                return;
+            }
             const capsulas = Object.entries(capsulasData)
                 .filter(([id, cap]) => cap.eventoId === eventoId)
                 .map(([id, cap]) => ({ id, ...cap }));
@@ -1916,6 +1988,7 @@
                     avatar.innerHTML = '<div style="width:100%;height:100%;background:linear-gradient(135deg,#c41e3a,#165b33);display:flex;align-items:center;justify-content:center;font-size:3rem">👤</div>';
                 }
                 
+                avatar.querySelectorAll('img').forEach(marcarFoto);
                 avataresContainer.appendChild(avatar);
             });
             
@@ -1947,13 +2020,14 @@
             overlay.classList.add('active');
             criarConfetes();
             
-            // Após 20 segundos, redirecionar para gerenciamento
-            setTimeout(() => {
+            clearTimeout(timeoutAbertura);
+            timeoutAbertura = setTimeout(() => {
                 gerenciarEvento(eventoId);
             }, 20000);
         }
 
         function fecharCerimoniaAbertura() {
+            clearTimeout(timeoutAbertura);
             document.getElementById('cerimoniaAbertura').classList.remove('active');
         }
 
@@ -1983,10 +2057,13 @@
             const total = capsulas.length;
             const liberadas = capsulas.filter(c => c.liberada).length;
             const abertas = capsulas.filter(c => c.aberta).length;
+            const chegou = dataJaChegou(evento.dataAbertura);
+            const quando = CapsulaTempo.formatarDataHora(evento.dataAbertura);
             
             container.innerHTML = `
                 <div class="cerimonia-header">
-                    <h1 class="cerimonia-title">🎉 ${evento.nome}</h1>
+                    <h1 class="cerimonia-title">🎉 ${esc(evento.nome)}</h1>
+                    <p class="abre-linha">📅 ${esc(quando)} · <strong data-abre="${esc(evento.dataAbertura)}">${esc(CapsulaTempo.textoContagem(evento.dataAbertura, agoraMs()))}</strong></p>
                 </div>
                 
                 <div class="cerimonia-stats">
@@ -2005,9 +2082,10 @@
                 </div>
                 
                 <div class="cerimonia-actions">
-                    <button class="btn-primary" onclick="liberarTodas('${eventoId}')">🔓 Liberar Todas</button>
-                    ${evento.arquivado ? `<button class="btn-primary" onclick="iniciarCerimoniaAbertura('${eventoId}')" style="background:var(--natal-red)">🎊 Replay Animação</button>` : ''}
+                    <button class="btn-primary" type="button" onclick="liberarTodas('${eventoId}')" ${chegou ? '' : 'disabled'}>🔓 Liberar Todas</button>
+                    ${evento.arquivado ? `<button class="btn-primary" type="button" onclick="iniciarCerimoniaAbertura('${eventoId}')" style="background:var(--natal-red)" ${chegou ? '' : 'disabled'}>🎊 ${chegou ? 'Cerimônia' : 'Cerimônia na data'}</button>` : ''}
                 </div>
+                ${chegou ? '' : `<p class="abre-linha">Antes de ${esc(quando)}, nenhuma cápsula é liberada. As mensagens de 2025 permanecem lacradas.</p>`}
                 
                 <div class="avatares-grid" id="avataresGrid"></div>
             `;
@@ -2028,21 +2106,22 @@
                 
                 card.innerHTML = `
                     <div class="avatar-foto">
-                        ${cap.foto ? `<img src="${cap.foto}" alt="${cap.nome}">` : '<div class="avatar-placeholder">👤</div>'}
+                        ${cap.foto ? `<img src="${esc(cap.foto)}" alt="${esc(cap.nome)}">` : '<div class="avatar-placeholder">👤</div>'}
                     </div>
-                    <div class="avatar-nome">${cap.nome} ${cap.sobrenome}</div>
+                    <div class="avatar-nome">${esc(cap.nome)} ${esc(cap.sobrenome)}</div>
                     <div class="avatar-status ${status}">${statusLabel}</div>
                     ${cap.desejos && cap.desejos.length > 0 ? `
                         <div class="avatar-desejos">
-                            ${cap.desejos.slice(0, 3).map(d => `<span class="avatar-desejo-tag">${d}</span>`).join('')}
+                            ${cap.desejos.slice(0, 3).map(d => `<span class="avatar-desejo-tag">${esc(d)}</span>`).join('')}
                         </div>
                     ` : ''}
                     ${cap.aberta 
-                        ? `<button class="avatar-btn ver" onclick="verCapsula('${cap.id}')">👁️ Ver Cápsula</button>`
-                        : `<button class="avatar-btn liberar" onclick="solicitarSenha('${cap.id}')">${cap.liberada ? '✨ Já liberada' : '🔓 Liberar'}</button>`
+                        ? `<button class="avatar-btn ver" type="button" onclick="verCapsula('${cap.id}')">👁️ Ver Cápsula</button>`
+                        : `<button class="avatar-btn liberar" type="button" onclick="solicitarSenha('${cap.id}')" ${chegou && !cap.liberada ? '' : 'disabled'}>${cap.liberada ? '✨ Já liberada' : (chegou ? '🔓 Liberar' : '🔒 Na data')}</button>`
                     }
                 `;
                 
+                card.querySelectorAll('img').forEach(marcarFoto);
                 grid.appendChild(card);
             });
         }
@@ -2051,6 +2130,12 @@
         // SISTEMA DE LIBERAÇÃO
         // ==========================================
         async function liberarTodas(eventoId) {
+            const evento = eventosData[eventoId];
+            if (!evento || !dataJaChegou(evento.dataAbertura)) {
+                mostrarToast(`Ainda é cedo. Abertura em ${CapsulaTempo.formatarDataHora(evento?.dataAbertura)} (Brasília).`, 'error');
+                return;
+            }
+
             const senha = prompt('Digite a senha do guardião:');
             if (!senha || senha.toLowerCase() !== SENHA_GUARDIAO) {
                 mostrarToast('Senha incorreta!', 'error');
@@ -2059,6 +2144,15 @@
             
             const capsulas = Object.entries(capsulasData)
                 .filter(([id, cap]) => cap.eventoId === eventoId && !cap.liberada);
+
+            if (modoDemo) {
+                capsulas.forEach(([id]) => { capsulasData[id].liberada = true; });
+                mostrarToast('Demonstração: nada foi gravado no servidor.');
+                renderizarCerimonia(eventoId);
+                renderizarEventos();
+                criarConfetes();
+                return;
+            }
             
             for (const [id] of capsulas) {
                 await database.ref(`capsulas/${id}/liberada`).set(true);
@@ -2077,8 +2171,22 @@
 
         async function verificarSenha() {
             const senha = document.getElementById('senhaInput').value;
+            const cap = capsulasData[capsulaParaLiberar];
+            const evento = eventosData[cap?.eventoId];
+
+            if (!cap || !dataJaChegou(evento?.dataAbertura)) {
+                mostrarToast(`Ainda é cedo. Abertura em ${CapsulaTempo.formatarDataHora(evento?.dataAbertura)} (Brasília).`, 'error');
+                return;
+            }
             
             if (senha.toLowerCase() === SENHA_GUARDIAO) {
+                if (modoDemo) {
+                    cap.liberada = true;
+                    fecharModal('modalSenha');
+                    mostrarToast('Demonstração: nada foi gravado no servidor.');
+                    if (eventoCerimoniaId) renderizarCerimonia(eventoCerimoniaId);
+                    return;
+                }
                 await database.ref(`capsulas/${capsulaParaLiberar}/liberada`).set(true);
                 fecharModal('modalSenha');
                 mostrarToast('🔓 Cápsula liberada!');
@@ -2089,7 +2197,7 @@
         }
 
         function verCapsula(id) {
-            window.open(`${getBaseUrl()}capsula.html?id=${id}&guardiao=true`, '_blank');
+            window.open(`${getBaseUrl()}capsula.html?id=${id}`, '_blank');
         }
 
         // ==========================================
@@ -2111,7 +2219,7 @@
                             ${cap.foto ? `<img src="${cap.foto}">` : '<div style="width:100%;height:100%;background:linear-gradient(135deg,#c41e3a,#165b33);display:flex;align-items:center;justify-content:center">👤</div>'}
                         </div>
                         <div class="lista-item-info">
-                            <div class="lista-item-nome">${cap.nome} ${cap.sobrenome}</div>
+                            <div class="lista-item-nome">${esc(cap.nome)} ${esc(cap.sobrenome)}</div>
                             <div class="lista-item-status">${cap.aberta ? '✅ Aberta' : (cap.liberada ? '🔓 Liberada' : '🔒 Lacrada')}</div>
                         </div>
                         <button class="btn-sm btn-copy" onclick="copiarLink('${getBaseUrl()}capsula.html?id=${cap.id}')">📋 Link</button>
@@ -2156,7 +2264,7 @@
                         ${cap.foto ? `<img src="${cap.foto}">` : '<div style="width:100%;height:100%;background:linear-gradient(135deg,#c41e3a,#165b33);display:flex;align-items:center;justify-content:center">👤</div>'}
                     </div>
                     <div class="lista-item-info">
-                        <div class="lista-item-nome">${cap.nome} ${cap.sobrenome}</div>
+                        <div class="lista-item-nome">${esc(cap.nome)} ${esc(cap.sobrenome)}</div>
                         <div class="lista-item-status">📦 ${eventosData[cap.eventoId]?.nome || 'Evento'}</div>
                     </div>
                     <button class="btn-sm btn-copy" onclick="copiarLink('${getBaseUrl()}capsula.html?id=${cap.id}')">📋 Copiar Link</button>
@@ -2197,8 +2305,12 @@
             const nome = document.getElementById('nomeEvento').value.trim();
             const data = document.getElementById('dataAbertura').value;
             
-            if (!nome || !data) {
+            if (!nome || !data || !CapsulaTempo.meioDiaBrasilia(data)) {
                 mostrarToast('Preencha todos os campos!', 'error');
+                return;
+            }
+            if (modoDemo) {
+                mostrarToast('Demonstração: nenhum evento novo foi gravado.', 'error');
                 return;
             }
             
@@ -2210,7 +2322,7 @@
                 await database.ref(`eventos/${id}`).set({
                     nome: nome,
                     dataCriacao: new Date().toISOString(),
-                    dataAbertura: new Date(data + 'T12:00:00').toISOString(),
+                    dataAbertura: CapsulaTempo.meioDiaBrasilia(data),
                     arquivado: false
                 });
                 
@@ -2262,14 +2374,14 @@
             
             card.innerHTML = `
                 <div class="evento-header">
-                    <h3 class="evento-nome">${evento.nome}</h3>
+                    <h3 class="evento-nome">${esc(evento.nome)}</h3>
                     <span class="evento-status ${evento.arquivado ? 'status-arquivado' : 'status-ativo'}">
                         ${evento.arquivado ? '📁 Arquivado' : '✅ Ativo'}
                     </span>
                 </div>
                 
                 ${!evento.arquivado ? `
-                    <div class="qr-container" onclick="ampliarQR('${id}', '${evento.nome}')">
+                    <div class="qr-container" data-qr="${esc(id)}" data-nome="${esc(evento.nome)}">
                         <div id="qr-${id}"></div>
                     </div>
                 ` : ''}
@@ -2289,8 +2401,9 @@
                     </div>
                 </div>
                 
-                <div style="font-size:0.9rem;color:rgba(255,255,255,0.6);margin-bottom:12px">
-                    📅 Abre em: <strong style="color:var(--natal-gold)">${formatarData(evento.dataAbertura)}</strong>
+                <div class="abre-linha">
+                    📅 Abre em <strong>${esc(CapsulaTempo.formatarDataHora(evento.dataAbertura))}</strong> (Brasília)<br>
+                    <span data-abre="${esc(evento.dataAbertura)}">${esc(CapsulaTempo.textoContagem(evento.dataAbertura, agoraMs()))}</span>
                 </div>
                 
                 ${!evento.arquivado ? `
@@ -2309,12 +2422,13 @@
                 
                 <div class="evento-actions">
                     ${!evento.arquivado ? `
-                        <button class="btn-action btn-lista" onclick="verLista('${id}')">📋 Lista</button>
-                        <button class="btn-action btn-cerimonia" onclick="gerenciarEvento('${id}')">🎉 Gerenciar</button>
-                        <button class="btn-action btn-fechar" onclick="iniciarCerimoniaFechamento('${id}')">🔒 Lacrar</button>
+                        <button class="btn-action btn-lista" type="button" onclick="verLista('${id}')">📋 Lista</button>
+                        <button class="btn-action btn-cerimonia" type="button" onclick="gerenciarEvento('${id}')">🎉 Gerenciar</button>
+                        <button class="btn-action btn-fechar" type="button" onclick="iniciarCerimoniaFechamento('${id}')">🔒 Lacrar</button>
                     ` : `
-                        <button class="btn-action btn-lista" onclick="verLista('${id}')">📋 Lista</button>
-                        <button class="btn-action btn-cerimonia" onclick="iniciarCerimoniaAbertura('${id}')">🎊 Abrir!</button>
+                        <button class="btn-action btn-lista" type="button" onclick="verLista('${id}')">📋 Lista</button>
+                        <button class="btn-action btn-cerimonia" type="button" onclick="gerenciarEvento('${id}')">👀 Acompanhar</button>
+                        <button class="btn-action btn-fechar" type="button" onclick="iniciarCerimoniaAbertura('${id}')" ${dataJaChegou(evento.dataAbertura) ? '' : 'disabled'}>🎊 ${dataJaChegou(evento.dataAbertura) ? 'Abrir cerimônia' : 'Abrir na data'}</button>
                     `}
                 </div>
             `;
@@ -2345,9 +2459,10 @@
                             <div class="participante-foto">
                                 ${cap.foto ? `<img src="${cap.foto}">` : '<div style="width:100%;height:100%;background:linear-gradient(135deg,#c41e3a,#165b33);display:flex;align-items:center;justify-content:center;font-size:1rem">👤</div>'}
                             </div>
-                            <span class="participante-nome">${cap.nome}</span>
+                            <span class="participante-nome">${esc(cap.nome)}</span>
                         </div>
                     `).join('') + (capsulas.length > 8 ? `<span style="color:rgba(255,255,255,0.5);padding:8px">+${capsulas.length - 8}</span>` : '');
+                    partContainer.querySelectorAll('img').forEach(marcarFoto);
                 }
             }, 150);
             
@@ -2364,7 +2479,7 @@
             const errorEl = document.getElementById('authError');
             
             if (senha.toLowerCase() === SENHA_GUARDIAO) {
-                // Senha correta - esconder overlay e inicializar sistema
+                sessionStorage.setItem('capsula_guardiao', 'ok');
                 document.getElementById('authOverlay').classList.add('hidden');
                 inicializarSistema();
             } else {
@@ -2398,58 +2513,68 @@
         }
         
         // Inicializar sistema após autenticação
-        function inicializarSistema() {
+        function resumoCapsula(cap) {
+            return { aberta: !!cap?.aberta, nome: cap?.nome || '' };
+        }
+
+        function iniciarRelogio() {
+            if (window.__capsulaRelogio) return;
+            window.__capsulaRelogio = setInterval(() => {
+                document.querySelectorAll('[data-abre]').forEach((el) => {
+                    el.textContent = CapsulaTempo.textoContagem(el.dataset.abre, agoraMs());
+                });
+                const chave = Object.values(eventosData)
+                    .map((evento) => dataJaChegou(evento.dataAbertura) ? '1' : '0')
+                    .join('');
+                if (estadosDatas && chave !== estadosDatas) {
+                    estadosDatas = chave;
+                    renderizarEventos();
+                    if (eventoCerimoniaId) renderizarCerimonia(eventoCerimoniaId);
+                } else if (!estadosDatas) {
+                    estadosDatas = chave;
+                }
+            }, 1000);
+        }
+
+        function iniciarDemo(quando) {
+            modoDemo = true;
+            relogioDemo = quando === 'antes'
+                ? Date.parse('2026-10-18T15:00:00.000Z')
+                : Date.parse('2026-12-25T15:00:01.000Z');
+            document.getElementById('authOverlay').classList.add('hidden');
+            eventosData = {
+                evt_demo: {
+                    nome: 'Natal demonstração',
+                    arquivado: true,
+                    dataCriacao: '2025-12-25T18:00:00.000Z',
+                    dataAbertura: '2026-12-25T15:00:00.000Z'
+                }
+            };
+            capsulasData = {
+                cap_demo_1: {
+                    eventoId: 'evt_demo', nome: 'Ana', sobrenome: 'Demonstração',
+                    desejos: ['Família', 'Saúde'], liberada: false, aberta: false, mensagemPessoal: ''
+                },
+                cap_demo_2: {
+                    eventoId: 'evt_demo', nome: 'Bruno', sobrenome: 'Demonstração',
+                    desejos: ['Viajar', 'Paz interior'], liberada: false, aberta: false, mensagemPessoal: ''
+                }
+            };
             criarParticulas();
-            
-            // Data padrão: 1 ano a partir de hoje
-            const dataDefault = new Date();
-            dataDefault.setFullYear(dataDefault.getFullYear() + 1);
-            document.getElementById('dataAbertura').value = dataDefault.toISOString().split('T')[0];
-            
-            // Listener de eventos
-            database.ref('eventos').on('value', (snapshot) => {
-                eventosData = snapshot.val() || {};
-                renderizarEventos();
+            document.getElementById('dataAbertura').value = '2026-12-25';
+            document.getElementById('badgeCaps').textContent = '2';
+            renderizarEventos();
+            iniciarRelogio();
+            ligarAtalhos();
+        }
+
+        function ligarAtalhos() {
+            if (window.__capsulaAtalhos) return;
+            window.__capsulaAtalhos = true;
+            document.body.addEventListener('click', (e) => {
+                const qr = e.target.closest('[data-qr]');
+                if (qr) ampliarQR(qr.dataset.qr, qr.dataset.nome);
             });
-            
-            // Listener de cápsulas - DETECTA NOVAS CÁPSULAS EM TEMPO REAL
-            database.ref('capsulas').on('value', (snapshot) => {
-                const novasCapsulas = snapshot.val() || {};
-                
-                // Detectar novas cápsulas (após primeira carga)
-                if (!primeiraCarrega) {
-                    Object.entries(novasCapsulas).forEach(([id, cap]) => {
-                        // Nova cápsula criada
-                        if (!capsulasAnteriores[id] && cap.nome) {
-                            console.log('🎉 Nova cápsula detectada:', cap.nome, cap.sobrenome);
-                            mostrarNotificacaoNovaCapsula(cap, 'lacrou');
-                        }
-                        // Cápsula foi aberta
-                        else if (capsulasAnteriores[id] && !capsulasAnteriores[id].aberta && cap.aberta) {
-                            console.log('📬 Cápsula aberta:', cap.nome, cap.sobrenome);
-                            mostrarNotificacaoNovaCapsula(cap, 'abriu');
-                        }
-                    });
-                }
-                
-                // Atualizar cache
-                capsulasAnteriores = JSON.parse(JSON.stringify(novasCapsulas));
-                capsulasData = novasCapsulas;
-                primeiraCarrega = false;
-                
-                // Atualizar badge
-                document.getElementById('badgeCaps').textContent = Object.keys(capsulasData).length;
-                
-                // Re-renderizar eventos
-                renderizarEventos();
-                
-                // Atualizar cerimônia se aberta
-                if (eventoCerimoniaId) {
-                    renderizarCerimonia(eventoCerimoniaId);
-                }
-            });
-            
-            // Fechar modais com ESC
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
                     document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active'));
@@ -2457,25 +2582,64 @@
                     fecharCerimoniaAbertura();
                 }
             });
-            
-            // Fechar modais clicando fora
             document.querySelectorAll('.modal-overlay').forEach(overlay => {
                 overlay.addEventListener('click', (e) => {
-                    if (e.target === overlay) {
-                        overlay.classList.remove('active');
-                    }
+                    if (e.target === overlay) overlay.classList.remove('active');
                 });
             });
         }
+
+        function inicializarSistema() {
+            if (window.__capsulaIniciado) return;
+            window.__capsulaIniciado = true;
+            criarParticulas();
+
+            const dataDefault = new Date();
+            dataDefault.setFullYear(dataDefault.getFullYear() + 1);
+            document.getElementById('dataAbertura').value = CapsulaTempo.dataInputBrasilia(dataDefault);
+            
+            const falhaLeitura = (err) => {
+                console.error(err);
+                mostrarToast('Não foi possível carregar os dados. Nada foi alterado.', 'error');
+            };
+
+            database.ref('eventos').on('value', (snapshot) => {
+                eventosData = snapshot.val() || {};
+                renderizarEventos();
+            }, falhaLeitura);
+            
+            database.ref('capsulas').on('value', (snapshot) => {
+                const novasCapsulas = snapshot.val() || {};
+                
+                if (!primeiraCarrega) {
+                    Object.entries(novasCapsulas).forEach(([id, cap]) => {
+                        if (!capsulasAnteriores[id] && cap.nome) {
+                            mostrarNotificacaoNovaCapsula(cap, 'lacrou');
+                        } else if (capsulasAnteriores[id] && !capsulasAnteriores[id].aberta && cap.aberta) {
+                            mostrarNotificacaoNovaCapsula(cap, 'abriu');
+                        }
+                    });
+                }
+                
+                const proximo = {};
+                Object.entries(novasCapsulas).forEach(([id, cap]) => {
+                    proximo[id] = resumoCapsula(cap);
+                });
+                capsulasAnteriores = proximo;
+                capsulasData = novasCapsulas;
+                primeiraCarrega = false;
+                
+                document.getElementById('badgeCaps').textContent = Object.keys(capsulasData).length;
+                renderizarEventos();
+                if (eventoCerimoniaId) renderizarCerimonia(eventoCerimoniaId);
+            }, falhaLeitura);
+
+            iniciarRelogio();
+            ligarAtalhos();
+        }
         
         document.addEventListener('DOMContentLoaded', () => {
-            // Criar estrelas na tela de login
             criarEstrelasAuth();
-            
-            // Focar no input de senha
-            document.getElementById('authInput').focus();
-            
-            // Adicionar keyframe de shake
             const style = document.createElement('style');
             style.textContent = `
                 @keyframes shake {
@@ -2485,6 +2649,20 @@
                 }
             `;
             document.head.appendChild(style);
+
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('demo') === '1') {
+                iniciarDemo(params.get('quando') || 'dia');
+                return;
+            }
+
+            if (sessionStorage.getItem('capsula_guardiao') === 'ok') {
+                document.getElementById('authOverlay').classList.add('hidden');
+                inicializarSistema();
+                return;
+            }
+            
+            document.getElementById('authInput').focus();
         });
     </script>
 </body>

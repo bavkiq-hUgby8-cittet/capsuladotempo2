@@ -2,13 +2,16 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0e14">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎁</text></svg>">
     <title>🎁 Minha Cápsula do Tempo</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Poppins:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="comum.js"></script>
     
     <style>
         :root { --natal-red: #c41e3a; --natal-green: #165b33; --natal-gold: #ffd700; --midnight: #0a0e14; }
@@ -54,7 +57,9 @@
         .btn-abrir { background: linear-gradient(135deg, var(--natal-gold), #ffaa00); color: var(--midnight); border: none; padding: 20px 52px; border-radius: 16px; font-size: 1.3rem; font-weight: 700; cursor: pointer; font-family: 'Poppins', sans-serif; box-shadow: 0 8px 30px rgba(255,215,0,0.4); transition: all 0.3s; margin-top: 24px; }
         .btn-abrir:hover { transform: translateY(-3px) scale(1.02); }
         .btn-abrir:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-        .msg-aguarde { color: rgba(255,255,255,0.6); font-size: 1rem; margin-top: 20px; line-height: 1.5; }
+        .btn-abrir.pronto { animation: pulse 2s infinite; }
+        .msg-aguarde { color: rgba(255,255,255,0.8); font-size: 1rem; margin-top: 20px; line-height: 1.5; max-width: 360px; }
+        .quando-abre { color: var(--natal-gold); font-weight: 600; margin-top: 8px; }
 
         .tela-aberta { padding: 20px 0; }
         .header-aberta { display: flex; align-items: center; gap: 18px; margin-bottom: 28px; padding-bottom: 24px; border-bottom: 2px solid rgba(255,255,255,0.1); }
@@ -151,10 +156,16 @@
         .erro-titulo { color: var(--natal-gold); font-size: 1.5rem; margin-bottom: 12px; }
         .erro-msg { color: rgba(255,255,255,0.7); font-size: 1.1rem; }
 
+        :focus-visible { outline: 3px solid var(--natal-gold); outline-offset: 3px; }
+        @media (prefers-reduced-motion: reduce) {
+            .snowflake, .confete, .star, .capsula-corpo { animation: none; }
+        }
         @media (max-width: 400px) {
-            .container { padding: 16px; }
-            .countdown-value { font-size: 1.8rem; padding: 12px 14px; min-width: 55px; }
+            .container { padding: 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+            .countdown { gap: 8px; flex-wrap: wrap; }
+            .countdown-value { font-size: 1.5rem; padding: 12px 10px; min-width: 52px; }
             .foto-lacrada { width: 140px; height: 140px; }
+            .btn-abrir { width: 100%; padding: 18px 20px; }
         }
     </style>
 </head>
@@ -178,15 +189,16 @@
             
             <div class="status-badge status-lacrada" id="statusBadge">🔒 Cápsula Lacrada</div>
             
-            <div class="countdown" id="countdown">
+            <div class="countdown" id="countdown" aria-live="polite">
                 <div class="countdown-item"><div class="countdown-value" id="dias">--</div><div class="countdown-label">DIAS</div></div>
                 <div class="countdown-item"><div class="countdown-value" id="horas">--</div><div class="countdown-label">HORAS</div></div>
                 <div class="countdown-item"><div class="countdown-value" id="minutos">--</div><div class="countdown-label">MIN</div></div>
                 <div class="countdown-item"><div class="countdown-value" id="segundos">--</div><div class="countdown-label">SEG</div></div>
             </div>
+            <p class="quando-abre" id="quandoAbre"></p>
             
-            <button class="btn-abrir" id="btnAbrir" onclick="iniciarAbertura()" disabled>🎁 ABRIR CÁPSULA</button>
-            <p class="msg-aguarde" id="msgAguarde">⏳ Aguardando o guardião liberar sua cápsula...</p>
+            <button class="btn-abrir" id="btnAbrir" type="button" onclick="iniciarAbertura()" disabled>🎁 ABRIR CÁPSULA</button>
+            <p class="msg-aguarde" id="msgAguarde">Carregando sua cápsula...</p>
         </div>
 
         <!-- TELA ABERTA -->
@@ -210,7 +222,7 @@
                             <p>Mensagem do passado</p>
                         </div>
                     </div>
-                    <audio id="audioPlayer" controls preload="auto"></audio>
+                    <audio id="audioPlayer" controls preload="auto" playsinline></audio>
                     <button class="btn-play-audio" id="btnPlayAudio" onclick="toggleAudio()">
                         <span id="playIcon">▶️</span>
                         <span id="playText">Ouvir Mensagem</span>
@@ -260,8 +272,8 @@
         <!-- TELA ERRO -->
         <div class="tela tela-erro" id="telaErro">
             <div class="erro-icon">😕</div>
-            <h2 class="erro-titulo">Cápsula não encontrada</h2>
-            <p class="erro-msg">Verifique o link</p>
+            <h2 class="erro-titulo" id="erroTitulo">Cápsula não encontrada</h2>
+            <p class="erro-msg" id="erroMsg">Verifique o link e tente de novo.</p>
         </div>
     </div>
 
@@ -315,14 +327,17 @@
         let capsulaId = null;
         let capsulaData = null;
         let eventoData = null;
-        let isGuardiao = false;
         let countdownInterval = null;
         let isPlaying = false;
+        let abrindo = false;
+        let modoDemo = false;
+        let relogioDemo = null;
+        const agoraCapsula = () => relogioDemo ?? Date.now();
         let videoBlob = null;
         let imagemBlob = null;
         let fotoImg = null;
 
-        const formatarData = (d) => new Date(d).toLocaleDateString('pt-BR');
+        const formatarData = (d) => CapsulaTempo.formatarData(d);
         const mostrarToast = (msg) => {
             const t = document.getElementById('toast');
             t.textContent = msg;
@@ -380,144 +395,346 @@
             document.getElementById(id).classList.add('active');
         }
 
+        function mostrarErro(titulo, msg) {
+            document.getElementById('erroTitulo').textContent = titulo;
+            document.getElementById('erroMsg').textContent = msg;
+            mostrarTela('telaErro');
+        }
+
+        function fotoDaCapsula() {
+            return capsulaData?.foto || capsulaData?.fotoLocal || '';
+        }
+
+        function colocarFoto(el, url, emoji) {
+            el.replaceChildren();
+            if (!url) {
+                el.textContent = emoji;
+                return;
+            }
+            const img = document.createElement('img');
+            img.alt = '';
+            img.src = url;
+            img.addEventListener('error', () => {
+                el.replaceChildren();
+                el.textContent = emoji;
+            });
+            el.appendChild(img);
+        }
+
+        function preencherTags(container, itens) {
+            container.replaceChildren();
+            (itens || []).forEach((item) => {
+                const span = document.createElement('span');
+                span.className = 'tag-item';
+                span.textContent = item;
+                container.appendChild(span);
+            });
+        }
+
+        function adicionarPergunta(container, rotulo, texto, extra) {
+            if (!texto && texto !== 0) return;
+            const item = document.createElement('div');
+            item.className = 'pergunta-item';
+            const label = document.createElement('div');
+            label.className = 'pergunta-label';
+            label.textContent = rotulo;
+            item.appendChild(label);
+            if (extra) extra(item);
+            else {
+                const resposta = document.createElement('div');
+                resposta.className = 'pergunta-resposta';
+                resposta.textContent = texto;
+                item.appendChild(resposta);
+            }
+            container.appendChild(item);
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             criarParticulas();
-            
+
             const params = new URLSearchParams(window.location.search);
+            if (params.get('demo') === '1') {
+                iniciarDemo(params.get('quando') || 'dia');
+                return;
+            }
+
             capsulaId = params.get('id');
-            isGuardiao = params.get('guardiao') === 'true';
-            
-            if (!capsulaId) { mostrarTela('telaErro'); return; }
-            
+            if (!capsulaId) {
+                mostrarErro('Link incompleto', 'Este endereço não tem o código da cápsula.');
+                return;
+            }
+
             try {
                 const capSnap = await database.ref(`capsulas/${capsulaId}`).once('value');
                 capsulaData = capSnap.val();
-                if (!capsulaData) { mostrarTela('telaErro'); return; }
-                
-                const evtSnap = await database.ref(`eventos/${capsulaData.eventoId}`).once('value');
-                eventoData = evtSnap.val();
-                
-                // Pré-carregar foto
-                if (capsulaData.foto) {
-                    fotoImg = new Image();
-                    fotoImg.crossOrigin = 'anonymous';
-                    fotoImg.src = capsulaData.foto;
+                if (!capsulaData) {
+                    mostrarErro('Cápsula não encontrada', 'Confira o link. Nada foi apagado daqui.');
+                    return;
                 }
-                
-                if (capsulaData.aberta) { mostrarConteudo(); return; }
+
+                if (capsulaData.eventoId) {
+                    const evtSnap = await database.ref(`eventos/${capsulaData.eventoId}`).once('value');
+                    eventoData = evtSnap.val() || { nome: 'Cápsula do Tempo' };
+                } else {
+                    eventoData = { nome: 'Cápsula do Tempo' };
+                }
+
+                prepararFotoCanvas();
+                if (capsulaData.aberta) {
+                    mostrarConteudo(false);
+                    return;
+                }
                 renderizarLacrada();
+                database.ref(`capsulas/${capsulaId}`).on('value', aoAtualizarCapsula, (err) => {
+                    console.error(err);
+                });
             } catch (err) {
                 console.error(err);
-                mostrarTela('telaErro');
+                mostrarErro('Sem conexão', 'Não foi possível falar com o servidor. Verifique a internet e atualize a página.');
             }
         });
 
-        function renderizarLacrada() {
-            if (capsulaData.foto) document.getElementById('fotoLacrada').innerHTML = `<img src="${capsulaData.foto}">`;
-            document.getElementById('nomeLacrada').textContent = `${capsulaData.nome} ${capsulaData.sobrenome}`;
-            document.getElementById('eventoLacrada').textContent = eventoData?.nome || 'Cápsula do Tempo';
-            
-            if (capsulaData.liberada || isGuardiao) {
-                document.getElementById('statusBadge').className = 'status-badge status-liberada';
-                document.getElementById('statusBadge').textContent = '🔓 Liberada!';
-                document.getElementById('capsulLacre').textContent = '🔓';
-                document.getElementById('btnAbrir').disabled = false;
-                document.getElementById('msgAguarde').style.display = 'none';
+        function iniciarDemo(quando) {
+            modoDemo = true;
+            capsulaId = 'demo';
+            capsulaData = {
+                nome: 'Ana',
+                sobrenome: 'Demonstração',
+                foto: '',
+                desejos: ['Família', 'Saúde', 'Viajar'],
+                pessoas: ['Família', 'Eu mesmo'],
+                perguntas: {
+                    conquista: 'Aprender algo novo',
+                    momento: 'O Natal em família',
+                    palavra: 'Gratidão',
+                    felicidade: 9,
+                    previsao: 'Mais tempo juntos'
+                },
+                mensagemPessoal: 'Esta é uma cápsula de demonstração. As cartas reais da família não são abertas nem alteradas neste modo.',
+                audioBase64: null,
+                audioUrl: null,
+                dataCriacao: '2025-12-25T18:00:00.000Z',
+                dataAbertura: '2026-12-25T15:00:00.000Z',
+                liberada: false,
+                aberta: false
+            };
+            eventoData = { nome: 'Natal — demonstração' };
+            relogioDemo = quando === 'antes'
+                ? Date.parse('2026-10-18T15:00:00.000Z')
+                : Date.parse('2026-12-25T15:00:01.000Z');
+            const aviso = document.createElement('p');
+            aviso.className = 'msg-aguarde';
+            aviso.textContent = 'Modo demonstração. As cápsulas reais da família não são lidas nem alteradas.';
+            document.querySelector('.container').prepend(aviso);
+            renderizarLacrada();
+        }
+
+        function aoAtualizarCapsula(snap) {
+            const val = snap.val();
+            if (!val || abrindo) return;
+            const jaEstavaAberta = capsulaData && capsulaData.aberta;
+            capsulaData = val;
+            if (capsulaData.aberta) {
+                if (!jaEstavaAberta) mostrarConteudo(false);
+                return;
             }
-            
+            aplicarEstadoLacre();
+        }
+
+        function prepararFotoCanvas() {
+            const url = fotoDaCapsula();
+            if (!url || url.startsWith('data:')) {
+                if (url) {
+                    fotoImg = new Image();
+                    fotoImg.src = url;
+                }
+                return;
+            }
+            fotoImg = new Image();
+            fotoImg.crossOrigin = 'anonymous';
+            fotoImg.src = url;
+        }
+
+        function renderizarLacrada() {
+            colocarFoto(document.getElementById('fotoLacrada'), fotoDaCapsula(), '👤');
+            document.getElementById('nomeLacrada').textContent = `${capsulaData.nome || ''} ${capsulaData.sobrenome || ''}`.trim();
+            document.getElementById('eventoLacrada').textContent = eventoData?.nome || 'Cápsula do Tempo';
+            document.getElementById('quandoAbre').textContent = capsulaData.dataAbertura
+                ? `Abertura: ${CapsulaTempo.formatarDataHora(capsulaData.dataAbertura)} (horário de Brasília)`
+                : '';
+            aplicarEstadoLacre();
+            clearInterval(countdownInterval);
+            countdownInterval = setInterval(() => {
+                const antes = CapsulaTempo.jaChegou(capsulaData.dataAbertura, agoraCapsula());
+                atualizarCountdown();
+                const depois = CapsulaTempo.jaChegou(capsulaData.dataAbertura, agoraCapsula());
+                if (!antes && depois) aplicarEstadoLacre();
+            }, 1000);
+        }
+
+        function aplicarEstadoLacre() {
+            const chegou = CapsulaTempo.jaChegou(capsulaData.dataAbertura, agoraCapsula());
+            const badge = document.getElementById('statusBadge');
+            const btn = document.getElementById('btnAbrir');
+            const msg = document.getElementById('msgAguarde');
+            const lacre = document.getElementById('capsulLacre');
+
+            if (chegou) {
+                badge.className = 'status-badge status-liberada';
+                badge.textContent = capsulaData.liberada ? '🔓 Liberada pelo guardião!' : '🎁 Chegou a hora!';
+                lacre.textContent = '🎁';
+                btn.disabled = false;
+                btn.classList.add('pronto');
+                msg.textContent = 'Toque no botão para abrir. Sua carta, seus áudios e seus desejos continuam guardados.';
+            } else {
+                badge.className = 'status-badge status-lacrada';
+                badge.textContent = '🔒 Cápsula lacrada';
+                lacre.textContent = '🔒';
+                btn.disabled = true;
+                btn.classList.remove('pronto');
+                msg.textContent = 'Ainda não chegou a data. Antes disso, o conteúdo não abre — nem com o link de guardião.';
+            }
             atualizarCountdown();
-            countdownInterval = setInterval(atualizarCountdown, 1000);
         }
 
         function atualizarCountdown() {
-            const diff = new Date(capsulaData.dataAbertura) - new Date();
-            if (diff <= 0) {
-                document.getElementById('dias').textContent = '0';
-                document.getElementById('horas').textContent = '00';
-                document.getElementById('minutos').textContent = '00';
-                document.getElementById('segundos').textContent = '00';
-                return;
-            }
-            document.getElementById('dias').textContent = Math.floor(diff / (1000*60*60*24));
-            document.getElementById('horas').textContent = Math.floor((diff % (1000*60*60*24)) / (1000*60*60)).toString().padStart(2,'0');
-            document.getElementById('minutos').textContent = Math.floor((diff % (1000*60*60)) / (1000*60)).toString().padStart(2,'0');
-            document.getElementById('segundos').textContent = Math.floor((diff % (1000*60)) / 1000).toString().padStart(2,'0');
+            const p = CapsulaTempo.partesContagem(capsulaData.dataAbertura, agoraCapsula());
+            document.getElementById('dias').textContent = String(p.dias);
+            document.getElementById('horas').textContent = String(p.horas).padStart(2, '0');
+            document.getElementById('minutos').textContent = String(p.minutos).padStart(2, '0');
+            document.getElementById('segundos').textContent = String(p.segundos).padStart(2, '0');
         }
 
         async function iniciarAbertura() {
+            if (abrindo || !capsulaData) return;
+            if (!CapsulaTempo.jaChegou(capsulaData.dataAbertura, agoraCapsula())) {
+                mostrarToast('Ainda não chegou a hora da abertura.');
+                return;
+            }
+
+            abrindo = true;
+            document.getElementById('btnAbrir').disabled = true;
             const overlay = document.getElementById('aberturaOverlay');
             const capsula = document.getElementById('aberturaCapsula');
             const flash = document.getElementById('flash');
-            
+
             overlay.classList.add('active');
-            
-            await new Promise(r => setTimeout(r, 500));
+
+            await esperar(500);
             capsula.classList.add('shake');
-            await new Promise(r => setTimeout(r, 500));
+            await esperar(500);
             capsula.classList.remove('shake');
-            
-            await new Promise(r => setTimeout(r, 300));
+
+            await esperar(300);
             capsula.classList.add('shake');
-            await new Promise(r => setTimeout(r, 500));
+            await esperar(500);
             capsula.classList.remove('shake');
-            
-            await new Promise(r => setTimeout(r, 200));
+
+            await esperar(200);
             capsula.classList.add('explode');
-            
-            await new Promise(r => setTimeout(r, 400));
+            await esperar(400);
             flash.classList.add('active');
-            
-            await database.ref(`capsulas/${capsulaId}`).update({
-                aberta: true,
-                dataVisualizacao: new Date().toISOString()
-            });
-            
-            await new Promise(r => setTimeout(r, 800));
+
+            if (!modoDemo && !capsulaData.aberta) {
+                try {
+                    await database.ref(`capsulas/${capsulaId}`).update({
+                        aberta: true,
+                        dataVisualizacao: new Date().toISOString()
+                    });
+                    capsulaData.aberta = true;
+                } catch (err) {
+                    console.error(err);
+                    mostrarToast('Aberta neste aparelho. A sincronização falhou e será tentada de novo.');
+                    database.ref(`capsulas/${capsulaId}`).update({
+                        aberta: true,
+                        dataVisualizacao: new Date().toISOString()
+                    }).catch((e) => console.error(e));
+                }
+            } else if (modoDemo) {
+                capsulaData.aberta = true;
+            }
+
+            await esperar(800);
             flash.classList.remove('active');
             overlay.classList.remove('active');
             capsula.classList.remove('explode');
-            
+
             clearInterval(countdownInterval);
             mostrarConteudo(true);
             criarConfetes();
+            abrindo = false;
+        }
+
+        function esperar(ms) {
+            return new Promise((resolve) => setTimeout(resolve, ms));
         }
 
         function mostrarConteudo(autoplayAudio = false) {
             const fotoAberta = document.getElementById('fotoAberta');
-            if (capsulaData.foto) fotoAberta.innerHTML = `<img src="${capsulaData.foto}">`;
-            else fotoAberta.innerHTML = '<div style="width:100%;height:100%;background:#333;display:flex;align-items:center;justify-content:center;font-size:2rem">👤</div>';
+            colocarFoto(fotoAberta, fotoDaCapsula(), '👤');
             
-            document.getElementById('nomeAberta').textContent = `${capsulaData.nome} ${capsulaData.sobrenome}`;
+            document.getElementById('nomeAberta').textContent = `${capsulaData.nome || ''} ${capsulaData.sobrenome || ''}`.trim();
             document.getElementById('dataAberta').textContent = `Criada em ${formatarData(capsulaData.dataCriacao)}`;
             document.getElementById('eventoAberta').textContent = eventoData?.nome || '';
             
             configurarAudio(autoplayAudio);
             
             if (capsulaData.desejos?.length > 0) {
-                document.getElementById('desejosContainer').innerHTML = capsulaData.desejos.map(d => `<span class="tag-item">${d}</span>`).join('');
+                preencherTags(document.getElementById('desejosContainer'), capsulaData.desejos);
             }
             
             if (capsulaData.pessoas?.length > 0) {
                 document.getElementById('secaoPessoas').style.display = 'block';
-                document.getElementById('pessoasContainer').innerHTML = capsulaData.pessoas.map(p => `<span class="tag-item">${p}</span>`).join('');
+                preencherTags(document.getElementById('pessoasContainer'), capsulaData.pessoas);
             }
             
             if (capsulaData.perguntas) {
                 const p = capsulaData.perguntas;
-                let html = '';
-                if (p.conquista) html += `<div class="pergunta-item"><div class="pergunta-label">🎯 Conquista esperada:</div><div class="pergunta-resposta">${p.conquista}</div></div>`;
-                if (p.momento) html += `<div class="pergunta-item"><div class="pergunta-label">✨ Momento marcante:</div><div class="pergunta-resposta">${p.momento}</div></div>`;
-                if (p.palavra) html += `<div class="pergunta-item"><div class="pergunta-label">📝 Palavra do momento:</div><div class="pergunta-resposta" style="font-size:1.4rem;color:var(--natal-gold);font-weight:600">"${p.palavra}"</div></div>`;
-                if (p.felicidade) html += `<div class="pergunta-item"><div class="pergunta-label">😊 Felicidade:</div><div class="felicidade-display"><span class="felicidade-nota">${p.felicidade}</span><div class="felicidade-barra"><div class="felicidade-fill" style="width:${p.felicidade*10}%"></div></div><span style="color:rgba(255,255,255,0.5)">/10</span></div></div>`;
-                if (p.previsao) html += `<div class="pergunta-item"><div class="pergunta-label">🔮 Previsão:</div><div class="pergunta-resposta" style="font-style:italic">"${p.previsao}"</div></div>`;
-                if (html) {
-                    document.getElementById('secaoPerguntas').style.display = 'block';
-                    document.getElementById('perguntasContainer').innerHTML = html;
+                const box = document.getElementById('perguntasContainer');
+                box.replaceChildren();
+                adicionarPergunta(box, '🎯 Conquista esperada:', p.conquista);
+                adicionarPergunta(box, '✨ Momento marcante:', p.momento);
+                adicionarPergunta(box, '📝 Palavra do momento:', p.palavra, p.palavra ? (item) => {
+                    const resposta = document.createElement('div');
+                    resposta.className = 'pergunta-resposta';
+                    resposta.style.cssText = 'font-size:1.4rem;color:var(--natal-gold);font-weight:600';
+                    resposta.textContent = `"${p.palavra}"`;
+                    item.appendChild(resposta);
+                } : null);
+                if (p.felicidade) {
+                    adicionarPergunta(box, '😊 Felicidade:', p.felicidade, (item) => {
+                        const display = document.createElement('div');
+                        display.className = 'felicidade-display';
+                        const nota = document.createElement('span');
+                        nota.className = 'felicidade-nota';
+                        nota.textContent = p.felicidade;
+                        const barra = document.createElement('div');
+                        barra.className = 'felicidade-barra';
+                        const fill = document.createElement('div');
+                        fill.className = 'felicidade-fill';
+                        const notaNum = Math.max(0, Math.min(10, Number(p.felicidade) || 0));
+                        fill.style.width = `${notaNum * 10}%`;
+                        barra.appendChild(fill);
+                        const sufixo = document.createElement('span');
+                        sufixo.style.color = 'rgba(255,255,255,0.5)';
+                        sufixo.textContent = '/10';
+                        display.append(nota, barra, sufixo);
+                        item.appendChild(display);
+                    });
                 }
+                adicionarPergunta(box, '🔮 Previsão:', p.previsao, p.previsao ? (item) => {
+                    const resposta = document.createElement('div');
+                    resposta.className = 'pergunta-resposta';
+                    resposta.style.fontStyle = 'italic';
+                    resposta.textContent = `"${p.previsao}"`;
+                    item.appendChild(resposta);
+                } : null);
+                if (box.childElementCount) document.getElementById('secaoPerguntas').style.display = 'block';
             }
             
-            document.getElementById('mensagemTexto').textContent = capsulaData.mensagemPessoal || '(Sem mensagem)';
-            document.getElementById('mensagemChars').textContent = `${(capsulaData.mensagemPessoal || '').length} caracteres`;
+            const carta = (capsulaData.mensagemPessoal || '').trim();
+            document.getElementById('mensagemTexto').textContent = carta || 'Nenhuma carta escrita. Os desejos, as respostas e o áudio continuam nesta cápsula.';
+            document.getElementById('mensagemChars').textContent = `${carta.length} caracteres`;
             
             if (capsulaData.reflexao) {
                 document.getElementById('reflexaoForm').style.display = 'none';
@@ -533,14 +750,15 @@
             const audioPlayer = document.getElementById('audioPlayer');
             const audioStatus = document.getElementById('audioStatus');
             
-            const temAudio = capsulaData.audioBase64 || capsulaData.audioUrl;
-            if (!temAudio) { secaoAudio.style.display = 'none'; return; }
+            const fontes = [capsulaData.audioBase64, capsulaData.audioUrl].filter(Boolean);
+            if (!fontes.length) { secaoAudio.style.display = 'none'; return; }
             
             secaoAudio.style.display = 'block';
-            audioPlayer.src = capsulaData.audioBase64 || capsulaData.audioUrl;
+            let fonteAtual = 0;
+            audioPlayer.src = fontes[0];
             
             audioPlayer.oncanplay = () => {
-                audioStatus.textContent = '🎵 Pronto';
+                audioStatus.textContent = '🎵 Pronto para ouvir';
                 if (autoplay) setTimeout(() => playAudio(), 1000);
             };
             audioPlayer.onplay = () => {
@@ -562,8 +780,14 @@
                 document.getElementById('playText').textContent = 'Ouvir de novo';
             };
             audioPlayer.onerror = () => {
-                audioStatus.textContent = '⚠️ Erro';
-                if (capsulaData.audioBase64 && capsulaData.audioUrl) audioPlayer.src = capsulaData.audioUrl;
+                fonteAtual += 1;
+                if (fontes[fonteAtual]) {
+                    audioStatus.textContent = 'Tentando outra cópia do áudio...';
+                    audioPlayer.src = fontes[fonteAtual];
+                    audioPlayer.load();
+                    return;
+                }
+                audioStatus.textContent = 'Não foi possível reproduzir o áudio neste navegador. A gravação continua salva.';
             };
             audioPlayer.load();
         }
@@ -583,8 +807,21 @@
         async function salvarReflexao() {
             const texto = document.getElementById('reflexaoInput').value.trim();
             if (!texto) { mostrarToast('Escreva algo'); return; }
+            if (modoDemo) {
+                document.getElementById('reflexaoForm').style.display = 'none';
+                document.getElementById('reflexaoSalva').style.display = 'block';
+                document.getElementById('reflexaoTexto').textContent = texto;
+                mostrarToast('Demonstração: nada foi gravado no servidor.');
+                return;
+            }
             
-            await database.ref(`capsulas/${capsulaId}/reflexao`).set(texto);
+            try {
+                await database.ref(`capsulas/${capsulaId}/reflexao`).set(texto);
+            } catch (err) {
+                console.error(err);
+                mostrarToast('Não foi possível salvar a reflexão. Tente de novo.');
+                return;
+            }
             document.getElementById('reflexaoForm').style.display = 'none';
             document.getElementById('reflexaoSalva').style.display = 'block';
             document.getElementById('reflexaoTexto').textContent = texto;
@@ -702,7 +939,10 @@
             const chunks = [];
             
             const stream = canvas.captureStream(30);
-            const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
+            const tiposVideo = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+            const mimeVideo = tiposVideo.find((tipo) => MediaRecorder.isTypeSupported(tipo));
+            if (!mimeVideo) throw new Error('Gravação de vídeo não suportada neste navegador');
+            const recorder = new MediaRecorder(stream, { mimeType: mimeVideo });
             
             recorder.ondataavailable = (e) => {
                 if (e.data.size > 0) chunks.push(e.data);
